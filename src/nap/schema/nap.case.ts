@@ -20,9 +20,9 @@ export const NapCaseSchema = new mongoose.Schema({
     },
     when: {
         type: {
-            authorization: {
-                type: String,
-                required: false, // auth api no auth info
+            headers: {
+                type: Map,
+                required: false,
             },
             params: {
                 type: String,

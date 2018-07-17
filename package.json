@@ -21,9 +21,11 @@
     "@nestjs/core": "^5.0.0",
     "@nestjs/mongoose": "^5.0.0",
     "@types/mongoose": "^5.2.0",
+    "@types/request-promise-native": "^1.0.15",
     "fastify-formbody": "^2.0.0",
     "mongoose": "^5.2.3",
     "reflect-metadata": "^0.1.12",
+    "request-promise-native": "^1.0.5",
     "rxjs": "^6.0.0",
     "typescript": "^2.6.2"
   },

@@ -4,6 +4,9 @@ import { InjectModel } from '@nestjs/mongoose';
 import { NapCaseInterface } from './interfaces/nap.case'
 import { NapCaseModel } from './models/nap.case';
 import { ObjectId } from 'bson';
+import * as request from 'request';
+import * as rp from 'request-promise-native'
+import { format } from 'util';
 
 @Injectable()
 export class NapService {
@@ -30,24 +33,76 @@ export class NapService {
             )
         }
         console.log(cache);
-        let res = this.request(napCase, cache)
-        return { pass: true, message: "OK", instance: napCase, context: res };
-    }
-
-    private evaluator(v: string): any {
-        if (v.startsWith("#{")) {
-            // try replace uuid
+        napCase = this.whenEvaluator(napCase)
+        let res = await this.doRequest(napCase, cache)
+        let ret = this.comparator(napCase, res)
+        if (ret) {
+            return { pass: false, message: ret.message, instance: napCase, response: res };
+        }else{
+            return { pass: true, message: "OK", instance: napCase, response: res };
         }
     }
 
-    private request(napCase: NapCaseModel, cache: Map<ObjectId, any>): any {
+    private comparator(instance: NapCaseModel, response: any): Error | null {
+        // compare status code
+        if (instance.then.status != response.statusCode) {
+            return new Error(format("statusCode:", 'expect', instance.then.status, 'but found', response.statusCode))
+        }
+        // compare headers
+        if (instance.then.headers) {
+
+        }
+        // compare body
+        if (instance.then.body) {
+            for (let k in instance.then.body) {
+                instance.then.body.get(k)
+            }
+
+        }
+        return null;
+    }
+
+    private whenEvaluator(napCase: NapCaseModel): any {
+        // if (v.startsWith("#{")) {
+        //     // try replace uuid
+        // }
+        let a : string = 'b'
+        let c : string = `${napCase.when.body}`
+        return napCase;
+    }
+
+    private async doRequest(napCase: NapCaseModel, cache: Map<ObjectId, any>): Promise<any> {
+        console.log("run", napCase)
         // http
         if (typeof napCase.when.body === 'string') {
             // evaluate
             this.evaluator(napCase.when.body)
         }
         // do fucking http request
-        return "";
+        console.log('n', 'u' + napCase.when.params ? napCase.when.params : "");
+        let uri = "http://192.168.1.99" + napCase.api
+        if (napCase.when.params) {
+            uri += '/' + napCase.when.params;
+        }
+        console.log('u', uri)
+        var options = {
+            method: napCase.method.toUpperCase(),
+            uri: uri,
+            body: napCase.when.body,
+            resolveWithFullResponse: true,
+            json: true
+        };
+        let ret: any;
+        await rp(options)
+            .then(function (response) {
+                // POST succeeded...
+                ret = response
+            })
+            .catch(function (err) {
+                // POST failed...
+                console.error(err)
+            });
+        return ret;
     }
 
     async findAll(): Promise<Array<NapCaseInterface>> {
@@ -74,5 +129,10 @@ export class NapService {
             //刪除失敗
             throw new Error(_id + " still exists in db");
         }
+    }
+
+    async deleteAll() {
+        console.log("delete all");
+        await this.napCaseModel.remove({}).exec();
     }
 }

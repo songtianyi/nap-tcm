@@ -66,4 +66,9 @@ export class NapController {
                 })
         }
     }
+
+    @Delete()
+    async deleteAll() {
+        await this.service.deleteAll();
+    }
 }
