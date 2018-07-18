@@ -37,7 +37,7 @@ export const NapCaseSchema = new mongoose.Schema({
     },
     then: {
         type: {
-            status: {
+            statusCode: {
                 type: Number,
                 required: true,
             },

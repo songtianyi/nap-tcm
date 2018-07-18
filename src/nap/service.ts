@@ -6,51 +6,87 @@ import { NapCaseModel } from './models/nap.case';
 import { ObjectId } from 'bson';
 import * as request from 'request';
 import * as rp from 'request-promise-native'
-import { format } from 'util';
+import { format, isRegExp, isError } from 'util';
+import { IncomingMessage } from 'http';
+import { relative } from 'path';
 
 @Injectable()
 export class NapService {
     constructor(@InjectModel('NapCase') private readonly napCaseModel: Model<NapCaseInterface>) { }
 
     async create(createDto: NapCaseModel): Promise<any> {
-        createDto._id = new ObjectId();
+        if (!createDto._id) {
+            createDto._id = new ObjectId();
+        }
         const created = new this.napCaseModel(createDto);
         return await created.save();
     }
 
+    async update(updateDto: NapCaseModel): Promise<any> {
+        console.log("updating..")
+        return await this.napCaseModel.update({ _id: updateDto._id }, updateDto).exec();
+    }
+
     async runById(_id: ObjectId): Promise<any> {
         let instance = await this.findById(_id);
-        return this.run(instance);
+        if (!instance) {
+            throw new Error(format('instance', _id, 'not found'))
+        }
+        console.log("run", instance)
+        return await this.run(instance);
     }
 
-    private async run(napCase: NapCaseModel) {
-        let cache = new Map<ObjectId, any>();
-        if (napCase.prerequisites) {
-            let res = napCase.prerequisites.forEach(
-                pre => {
-                    cache.set(pre, this.runById(pre))
-                }
-            )
+    private async run(instance: NapCaseModel) {
+        let cache = new Map<string, any>();
+        if (instance.prerequisites) {
+            for (let v of instance.prerequisites) {
+                cache.set(v.toHexString(), await this.runById(v))
+            }
         }
-        console.log(cache);
-        napCase = this.whenEvaluator(napCase)
-        let res = await this.doRequest(napCase, cache)
-        let ret = this.comparator(napCase, res)
-        if (ret) {
-            return { pass: false, message: ret.message, instance: napCase, response: res };
-        }else{
-            return { pass: true, message: "OK", instance: napCase, response: res };
+        console.log('cache', cache)
+        // evaluate instance
+        if (instance.when.headers) {
+            for (let k in instance.when.headers) {
+                let replaced = this.evaluator(instance.when.headers[k], cache)
+                instance.when.headers[k] = replaced;
+                console.log('headers', instance.when.headers);
+            }
+        }
+        if (instance.when.body) {
+            instance.when.body = this.evaluator(instance.when.body, cache)
+        }
+        let response = await this.doRequest(instance, cache)
+        let ret = this.comparator(instance, response)
+        if (isError(ret)) {
+            return { pass: false, message: ret.message, instance: instance, response: response };
+        } else {
+            return { pass: true, message: "OK", instance: instance, response: response };
         }
     }
 
-    private comparator(instance: NapCaseModel, response: any): Error | null {
+    private comparator(instance: NapCaseModel, response: any): Error | any {
+        console.log('comparing', instance)
         // compare status code
-        if (instance.then.status != response.statusCode) {
-            return new Error(format("statusCode:", 'expect', instance.then.status, 'but found', response.statusCode))
+        if (instance.then.statusCode != response.statusCode) {
+            return new Error(format("statusCode:", 'expect', instance.then.statusCode, 'but found', response.statusCode))
         }
         // compare headers
         if (instance.then.headers) {
-
+            for (let k in instance.then.headers) {
+                let expect = instance.then.headers[k]
+                let is = response.headers[k]
+                // it shouldn't be context pattern, so null is ok.
+                let ev = this.evaluator(expect, null)
+                if (isRegExp(ev)) {
+                    if (!ev.test(is)) {
+                        return Error(format('headers.' + k + ':', 'expect match pattern', expect, 'but found', is))
+                    }
+                } else {
+                    if (expect != is) {
+                        return new Error(format('headers.' + k + ':', 'expect', expect, 'but found', is))
+                    }
+                }
+            }
         }
         // compare body
         if (instance.then.body) {
@@ -59,47 +95,54 @@ export class NapService {
             }
 
         }
-        return null;
+        return true;
     }
 
-    private whenEvaluator(napCase: NapCaseModel): any {
-        // if (v.startsWith("#{")) {
-        //     // try replace uuid
-        // }
-        let a : string = 'b'
-        let c : string = `${napCase.when.body}`
-        return napCase;
-    }
-
-    private async doRequest(napCase: NapCaseModel, cache: Map<ObjectId, any>): Promise<any> {
-        console.log("run", napCase)
-        // http
-        if (typeof napCase.when.body === 'string') {
-            // evaluate
-            this.evaluator(napCase.when.body)
+    private evaluator(v: any, cache: Map<string, any>): any {
+        if (typeof v === 'string') {
+            // regex case
+            let patRegex = new RegExp('\\$regex{(.*)}')
+            let ctxRegex = new RegExp('\\$context{([a-f\\d]{24})((\\.[a-zA-Z]+)+)')
+            if (patRegex.test(v)) {
+                return new RegExp(patRegex.exec(v)[1])
+            } else if (ctxRegex.test(v)) {
+                console.log('context')
+                let arr = ctxRegex.exec(v)
+                let uuid = arr[1]
+                let attr : string = arr[2]
+                let obj = cache.get(uuid)
+                let str = 'obj.response'  + attr
+                console.log(eval(str))
+                return eval(str)
+            }
+        }else {
+            return v;
         }
+    }
+
+    private async doRequest(instance: NapCaseModel, cache: Map<string, any>): Promise<IncomingMessage> {
         // do fucking http request
-        console.log('n', 'u' + napCase.when.params ? napCase.when.params : "");
-        let uri = "http://192.168.1.99" + napCase.api
-        if (napCase.when.params) {
-            uri += '/' + napCase.when.params;
+        let uri = "http://192.168.1.99" + instance.api
+        if (instance.when.params) {
+            uri += '/' + instance.when.params;
         }
         console.log('u', uri)
         var options = {
-            method: napCase.method.toUpperCase(),
+            method: instance.method.toUpperCase(),
             uri: uri,
-            body: napCase.when.body,
+            body: instance.when.body,
+            headers: instance.when.headers,
             resolveWithFullResponse: true,
             json: true
         };
         let ret: any;
         await rp(options)
             .then(function (response) {
-                // POST succeeded...
+                // succeeded...
                 ret = response
             })
             .catch(function (err) {
-                // POST failed...
+                // failed...
                 console.error(err)
             });
         return ret;

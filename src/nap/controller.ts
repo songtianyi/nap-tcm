@@ -1,6 +1,7 @@
 import { Get, Controller, HttpStatus, Response, Post, Body, Param, Delete, Res, Put } from '@nestjs/common';
 import { NapService } from './service';
 import { NapCaseModel } from './models/nap.case'
+import { format } from 'util';
 
 @Controller('/api/nap/case')
 export class NapController {
@@ -20,8 +21,17 @@ export class NapController {
 
     // actions
     @Get("/run/:_id")
-    async runById(@Param() params) {
-        return this.service.runById(params._id);
+    async runById(@Param() params, @Response() res) {
+        try {
+            res.status(HttpStatus.OK).json(await this.service.runById(params._id));
+        }catch(e) {
+            res.status(HttpStatus.INTERNAL_SERVER_ERROR).json(
+                {
+                    statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+                    message: e.message
+                }
+            )
+        }
     }
 
 
@@ -38,8 +48,8 @@ export class NapController {
     }
 
 
-    @Put()
-    async replace(@Body() napCase: NapCaseModel, @Response() res) {
+    @Put("/:_id")
+    async replace(@Param() params, @Body() napCase: NapCaseModel, @Response() res) {
         if (napCase._id == null) {
             res.status(HttpStatus.BAD_REQUEST).json(
                 {
@@ -48,8 +58,16 @@ export class NapController {
                 }
             )
         }
-        await this.service.create(napCase);
-        res.status(HttpStatus.OK);
+        if (napCase._id != params._id) {
+            res.status(HttpStatus.BAD_REQUEST).json(
+                {
+                    statusCode: HttpStatus.BAD_REQUEST,
+                    message: format("params._id", params._id, 'not equal with', napCase._id)
+                }
+            )
+        }
+        this.service.update(napCase);
+        res.status(HttpStatus.OK).json(await this.service.update(napCase))
     }
 
     // D

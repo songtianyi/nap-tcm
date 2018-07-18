@@ -1,5 +1,5 @@
 export class then {
-    status: number;
+    statusCode: number;
     headers: Map<string, number | string | string[]> // kv
     body: Map<string, any>; // json
 }
