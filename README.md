@@ -1,16 +1,16 @@
-# tcm
+## nap-tcm
 
-## Description
+##### Description
 
 Test-case Manager
 
-## Installation
+##### Installation
 
 ```bash
 $ npm install
 ```
 
-## Running the app
+##### Running the app
 
 ```bash
 # development
@@ -23,7 +23,7 @@ $ npm run start:dev
 npm run start:prod
 ```
 
-## Test
+##### Test
 
 ```bash
 # unit tests

@@ -43,7 +43,6 @@ export class NapService {
                 cache.set(v.toHexString(), await this.runById(v))
             }
         }
-        console.log('cache', cache)
         // evaluate instance
         if (instance.when.headers) {
             for (let k in instance.when.headers) {
@@ -75,7 +74,7 @@ export class NapService {
             for (let k in instance.then.headers) {
                 let expect = instance.then.headers[k]
                 let is = response.headers[k]
-                // it shouldn't be context pattern, so null is ok.
+                // it couldn't be context pattern, so null is ok.
                 let ev = this.evaluator(expect, null)
                 if (isRegExp(ev)) {
                     if (!ev.test(is)) {
