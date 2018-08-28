@@ -44,6 +44,8 @@ export class NapService {
             }
         }
         // evaluate instance
+        // evalute uri
+        instance.api = this.evaluator(instance.api, cache)
         if (instance.when.headers) {
             for (let k in instance.when.headers) {
                 let replaced = this.evaluator(instance.when.headers[k], cache)
@@ -63,8 +65,16 @@ export class NapService {
         }
     }
 
+    private compareElement(key: String, expect: any, found: any): Error | null {
+        if ((expect == null) != (found == null)) {
+            return this.expectError(k, expect, found);
+        }
+        return null;
+    }
+    private expectError(k, expect, found): Error {
+            return new Error(format("key:", k, "expect", expect, "but found", found))
+    }
     private comparator(instance: NapCaseModel, response: any): Error | any {
-        console.log('comparing', instance)
         // compare status code
         if (instance.then.statusCode != response.statusCode) {
             return new Error(format("statusCode:", 'expect', instance.then.statusCode, 'but found', response.statusCode))
@@ -89,10 +99,14 @@ export class NapService {
         }
         // compare body
         if (instance.then.body) {
-            for (let k in instance.then.body) {
-                instance.then.body.get(k)
+            if (response.body == null) {
+                return this.expectError("body", "not null", "null");
             }
-
+            for (let k in instance.then.body) {
+                let v = instance.then.body.get(k)
+                let e = this.compareElement(k, v, response.body.get(k))
+                if (e != null) return e;
+            }
         }
         return true;
     }
@@ -101,19 +115,25 @@ export class NapService {
         if (typeof v === 'string') {
             // regex case
             let patRegex = new RegExp('\\$regex{(.*)}')
-            let ctxRegex = new RegExp('\\$context{([a-f\\d]{24})((\\.[a-zA-Z]+)+)')
+            let ctxRegex = new RegExp('\\$context{([a-f\\d]{24})((\\.[a-zA-Z\\[\\]\\(\\)0-9]+)+)}')
             if (patRegex.test(v)) {
+                console.log("pattern")
                 return new RegExp(patRegex.exec(v)[1])
             } else if (ctxRegex.test(v)) {
                 console.log('context')
                 let arr = ctxRegex.exec(v)
+                console.log(arr)
                 let uuid = arr[1]
                 let attr : string = arr[2]
                 let obj = cache.get(uuid)
                 let str = 'obj.response'  + attr
-                console.log(eval(str))
-                return eval(str)
-            }
+                let evaluated = eval(str)
+                if (typeof evaluated === 'string') {
+                    return v.replace(arr[0], evaluated)
+                }else{
+                    return evaluated;
+                }
+            } else return v;
         }else {
             return v;
         }
@@ -142,8 +162,8 @@ export class NapService {
             })
             .catch(function (err) {
                 // failed...
-                console.error(err)
-            });
+                ret = err.response
+            })
         return ret;
     }
 
