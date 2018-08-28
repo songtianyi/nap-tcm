@@ -4,7 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
-    MongooseModule.forRoot('mongodb://localhost:27017/cases', { useNewUrlParser: true }),
+    MongooseModule.forRoot('mongodb://192.168.1.88:27017/cases', { useNewUrlParser: true }),
     NapModule
   ],
   controllers: [],
