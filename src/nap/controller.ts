@@ -9,7 +9,7 @@ export class NapController {
 
     // C
     @Post()
-    async create(@Body() napCase: NapCaseModel​​) {
+    async create(@Body() napCase: NapCaseModel) {
         return this.service.create(napCase);
     }
 
@@ -23,7 +23,12 @@ export class NapController {
     @Get("/run/:_id")
     async runById(@Param() params, @Response() res) {
         try {
-            res.status(HttpStatus.OK).json(await this.service.runById(params._id));
+            let response = await this.service.runById(params._id)
+            if (response.pass == false) {
+                res.status(HttpStatus.EXPECTATION_FAILED).json(response)
+            }else {
+                res.status(HttpStatus.OK).json(response);
+            }
         }catch(e) {
             res.status(HttpStatus.INTERNAL_SERVER_ERROR).json(
                 {

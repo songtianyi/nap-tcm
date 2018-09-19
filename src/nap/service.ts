@@ -67,7 +67,7 @@ export class NapService {
 
     private compareElement(key: String, expect: any, found: any): Error | null {
         if ((expect == null) != (found == null)) {
-            return this.expectError(k, expect, found);
+            return this.expectError(key, expect, found);
         }
         return null;
     }
