@@ -141,7 +141,7 @@ export class NapService {
 
     private async doRequest(instance: NapCaseModel, cache: Map<string, any>): Promise<IncomingMessage> {
         // do fucking http request
-        let uri = "http://192.168.1.99" + instance.api
+        let uri = "http://" + process.env.NAP_API_HOST + instance.api
         if (instance.when.params) {
             uri += '/' + instance.when.params;
         }
